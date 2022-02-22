@@ -40,6 +40,7 @@ content-type: application/json
 
 {"registry":"success"}
 ```
+If one get a responce like ``{"registry":"blocked"}`` just wait 10 sec and repeat your query. FastAPI endpoint is RateLimited by income traffic.
 On the server side, a new job is launched with a bypass of all current `.ticket` files in the directory `IN_STREAM`
 
 ```json
@@ -68,7 +69,7 @@ content-type: application/json
 At the next stage when all replicas are registered from tickets look up one should initialize a process of data exctraction/preprocessing from the temporary store with the following bulk insertion into Redis database$:
 * --> *[POST]*: `/loadDf2redis`
 ```bash
-root@kcloud-production-user-136-vm-179:~# curl -i -X POST -d "ektov.a.va@sberbank.ru" http://65.108.56.136:8003/loadDf2redis
+root@kcloud-production-user-136-vm-179:~# curl -i -X POST -d "?email=ektov.a.va@sberbank.ru&force_reload=1" http://65.108.56.136:8003/loadDf2redis
 HTTP/1.1 200 OK
 date: Tue, 22 Feb 2022 17:52:55 GMT
 server: uvicorn
@@ -77,6 +78,13 @@ content-type: application/json
 
 {"file_name":"sample_us_users.csv","status":"PROCESSED","load_dttm":"2022-02-22:19:35:32"}
 ```
+One can supply different form of POST query:
+* `POST -d "?email=ektov.a.va@sberbank.ru&force_reload=1"` 
+* `POST -d "?email=ektov.a.va@sberbank.ru&force_reload=0"`
+* `POST -d "?email=ektov.a.va@sberbank.ru"`
+
+Params `force_reload` is suppposed to forcely update Redis DB without considering the `STATUS` value on corresponding `ticket` files
+
 This API works in several stages on the backend side:
 1. Load data from appropriate file by picking corresponding file name from ticket meta data
 1. Run Preprocessing block: 
