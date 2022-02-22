@@ -1,0 +1,5 @@
+{
+"user": "ektovav", 
+"mailbox": "ektovav@gmail.com",
+"server": "smtp.gmail.com"
+}
