@@ -1,9 +1,23 @@
 # ETL PyProject for NearRealTime(NRT) Data Stream Pipeline with REDIS backened:
 
+*PROJECT STRUCTURE*:
+- `service.py`: MAIN FastAPI async service running under uvicorn ASGI Web server 
+- `run.sh` : bash script to build Docker image and start container 
+- `Dockerfile`
+- `/src/`
+  - **./preproc.py**: class with Preprocessing functions
+- `/lib/`
+  - **./logger.py**: logger class and decorator
+  - **./mail_sender.py**: SMTP auto emailer class
+  - **./tools.py**: additional tools
+- `/keyring/`
+  - **./set_cred_wallet.py**: bash scrip to set and store user pass via keyring  
+- `IN_STREAM`: main gate for streaming data using sshfs sync tools
+
 Hosted virtual machines with deployed microservises:
 ![virtual machines](./img/virt_machines.png)
 
-Hereafter the directory directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
+Hereafter the directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
 We can simply perform a content synchronizations between stream directory on one remote host and look up directory on current machine using sshfs functionality:   
 ```shell script
 RUN echo "user_allow_other" >> /etc/fuse.conf
@@ -40,8 +54,8 @@ content-type: application/json
 
 {"registry":"success"}
 ```
-If one get a responce like ``{"registry":"blocked"}`` just wait 10 sec and repeat your query. FastAPI endpoint is RateLimited by income traffic.
-On the server side, a new job is launched with a bypass of all current `.ticket` files in the directory `IN_STREAM`
+If one get a responce like ``{"registry":"blocked"}`` just wait 10 sec and repeat your query. FastAPI endpoint is RateLimited by income traffic.\
+On the server side, a new job is launched traversing all current `.ticket` files in the directory `IN_STREAM`
 
 ```json
 {
