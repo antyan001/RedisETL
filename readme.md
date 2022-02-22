@@ -125,7 +125,7 @@ docker exec -it $docker_id /bin/sh -c "cd /app/keyring/; ./set_cred_wallet.sh $K
 Here we pass user `$KEYRINGPASS` needed for auto-mailing and simulate the process of storing user credentials in secure way with the full support of keyring library 
 that provides an easy way to access the system keyring service from python. 
 It can be used in any application that needs safe password storage
-##GUNICORN support
+## GUNICORN support
 Finally we used here a `GUNICORN` server for load balancing with 4 workers and 4 threads each with the full support of Graceful Shutdown and Graceful Reload.
 !["gunicorn"](./img/gunicorn.png)
 
