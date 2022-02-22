@@ -15,6 +15,7 @@ import re
 import numpy as np
 # from collections import Counter
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 import redis
 import aioredis
@@ -258,6 +259,19 @@ async def loadDf2redis(request: Request, response: Response):
     prep = PreprocPipe()
     const_cols_dct = {}
 
+    req = await request.body()
+
+    if req is not None:
+        params_dct = parse_qs(urlparse(req.decode("utf-8")).query)
+        email_recipient = params_dct.get("email", None)
+        if email_recipient is not None:  email_recipient = email_recipient[0]
+        reload = params_dct.get("force_reload", None)
+        if isinstance(reload, list):
+            force_reload = int(reload[0])
+        else:
+            force_reload = -1
+
+
     ticket_files = []
     dirs = os.listdir(STREAM_DIR)
     for dir_ in dirs:
@@ -268,7 +282,7 @@ async def loadDf2redis(request: Request, response: Response):
         if ticket_file is not None:
             with open("{}/{}".format(STREAM_DIR, ticket_file), "r") as f:
                 jq = json.load(f)
-                if jq["status"] == "REGISTERED":
+                if (jq["status"] == "REGISTERED") or (force_reload > 0):
                     REPLICA_NAME__ = jq["file_name"].split(".")[0]
                     METAREPLICA_NAME__ = REPLICA_NAME__ + ".META"
 
@@ -351,15 +365,7 @@ async def loadDf2redis(request: Request, response: Response):
                 json.dump(jq, f, indent=4)
 
         ## Send Notification Email Message about succesfull data storing in Redis DB
-
-        req = await request.body()
-
-        if req is not None:
-            if "email=" in req.decode("utf-8"):
-                email_recipient = req.decode("utf-8").split("email=")[-1].lower()
-            else:
-                email_recipient = req.decode("utf-8").lower()
-
+        if email_recipient is not None:
                 send_mail(email_msg, email_recipient)
 
     return jq
