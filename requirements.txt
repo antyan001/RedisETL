@@ -27,3 +27,4 @@ joblib
 keyring
 oauthlib
 exchangelib
+geonamescache
