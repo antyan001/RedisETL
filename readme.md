@@ -122,6 +122,19 @@ else
     exit 1
 fi
 ```
+We can simply add this code to the `CRONTAB` file to be running by `CRON` scheduler at specified time frequency:
+```shell script
+# Edit this file to introduce tasks to be run by cron.
+# 
+# Each task to run has to be defined through a single line
+# indicating with different fields when the task will be run
+# and what command to run for the task
+ 
+# Notice that tasks will be started based on the cron's system
+# daemon's notion of time and timezones.
+
+*/1 * * * * ./root/ReddisPostGres/run_registry.sh 2>&1>./root/ReddisPostGres/__cron_out__ 
+```
 
 At the next stage when all replicas are registered from tickets look up one should initialize a process of data exctraction/preprocessing from the temporary store with the following bulk insertion into Redis database$:
 * --> *[POST]*: `/loadDf2redis`
