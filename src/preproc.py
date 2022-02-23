@@ -2,9 +2,12 @@ import pandas as pd
 import os
 import re
 import numpy as np
+import json
+from json.decoder import JSONDecodeError
 from collections import Counter
 from subprocess import check_output, STDOUT
 from datetime import datetime
+from geonamescache import GeonamesCache
 from sklearn.preprocessing import StandardScaler, MaxAbsScaler, MinMaxScaler
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
@@ -12,10 +15,77 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 __all__ = ('PreprocPipe')
 
+def brushing_json_str(x):
+    # convert enclosing strings with double quotes and
+    # treat the case if JSON holds escaped single-quotes (\')
+    escaped_s_quotes = re.compile('(?<!\\\\)\'')
+    none_sub = re.compile('None')
+    inner_db_quotes = re.compile('(?<=[a-zA-z0-9])(\s*\"\s*)(?=[a-zA-z0-9])')
+    json_str = escaped_s_quotes.sub('\"', x)
+    json_str = inner_db_quotes.sub("\'", json_str)
+    json_str = none_sub.sub('null', json_str)
+
+    return json_str
+
 class PreprocPipe():
 
     def __init__(self):
-        pass
+        # non_us_locations = []
+        self.gc = GeonamesCache()
+        # countries = gc.get_countries()
+        # countries_by_names = gc.get_countries_by_names()
+        self.us_states = self.gc.get_us_states()
+        self.us_states_by_names = self.gc.get_us_states_by_names()
+
+    def is_json(self, text: str) -> bool:
+        if not isinstance(text, (str, bytes, bytearray)):
+            return False
+        if not text:
+            return False
+        text = text.strip()
+        text = brushing_json_str(text)
+        if text:
+            if text[0] in {'{', '['} and text[-1] in {'}', ']'}:
+                try:
+                    json.loads(text)
+                except (ValueError, TypeError, JSONDecodeError):
+                    return False
+                else:
+                    return True
+            else:
+                return False
+        return False
+
+    def verify_json_str(self, x):
+        json_str = brushing_json_str(x)
+        try:
+            json_ = json.loads(json_str)
+        except Exception as ex:
+            print(json_str)
+
+        for k, v in json_.items():
+            if v is not None:
+                json_[k] = v.strip()
+
+        find_city = self.gc.get_cities_by_name(json_['city'])
+        if len(find_city) != 0:
+            for city in find_city:
+                for k, v in city.items():
+                    res = v
+                if res['countrycode'] == 'US':
+                    try:
+                        json_['state'] = self.us_states[res['admin1code']]['name']
+                        json_['country'] = res['countrycode']
+                    except Exception as ex:
+                        print(json_str)
+        else:
+            if json_['state'] not in self.us_states_by_names:
+                #             non_us_locations.append(json_['city'])
+                json_['state'] = 'US-OUT'
+                json_['country'] = 'US-OUT'
+
+        return json.dumps(json_)
+
 
     def reduce_mem_usage(self, props):
         start_mem_usg = props.memory_usage().sum() / 1024 ** 2
