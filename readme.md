@@ -14,8 +14,23 @@
   - **./set_cred_wallet.py**: bash scrip to set and store user pass via keyring  
 - `IN_STREAM`: main gate for streaming data using sshfs sync tools
 
+### Virtual Machines
 Hosted virtual machines with deployed microservises:
 ![virtual machines](./img/virt_machines.png)
+
+### REDIS DB 
+![redis](./img/redis.png)
+* **Redis**
+  * [RUN]
+    ```dockerfile
+    docker run -d -p 6379:6379 docker.io/library/redis:latest /bin/sh -c 'redis-server --requirepass *****'
+    ```
+* **Redisinsight**
+  * [RUN] 
+    ```dockerfile
+    docker run -d -p 8001:8001 docker.io/redislabs/redisinsight:latest
+    ```
+  * ``http://65.108.56.136:8001/instance/28c3e80b-014a-4893-a3fb-3d7667a538d5/``
 
 Hereafter the directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
 We can simply perform a content synchronizations between stream directory on one remote host and look up directory on current machine using sshfs functionality:   
@@ -80,6 +95,34 @@ content-type: application/json
 
 {"LIST_OF_REGISTERED_REPLICS":"sample_us_users, AVATAR_SAMPLE"}
 ```
+* --> *[GET]*: `/stop_calling_registry`
+```shell script
+root@kcloud-production-user-136-vm-179:~# curl -i http://65.108.56.136:8003/stop_calling_registry
+HTTP/1.1 200 OK
+date: Wed, 23 Feb 2022 22:32:00 GMT
+server: uvicorn
+content-length: 4
+content-type: application/json
+```
+Here one can implement a very simple trigger case there we should stop querying ``\register_replicas`` after receving successful replicas registration status.\
+Below is the code from `run_registry.sh` project file:
+```shell script
+resp="$(curl -i -f http://localhost:8003/register_replicas 2>/dev/null 1>./registry_status | grep -oP -- '"registry":\s?\K"[a-z]+"' registry_status)"
+#resp="$(!curl -i -f -s http://localhost:8003/register_replicas | \
+#        python3 -c $'import io,sys\nfor line in sys.stdin: res = line\nprint(res)' | xargs)"
+status="$?"
+
+if [[ "$resp" == *"success"* ]]; then
+    echo "Successfull Replica's Registration"
+    curl -i -f http://localhost:8003/stop_calling_registry
+    exit $status
+else
+    echo "Got some failure in registration"
+    echo $resp
+    exit 1
+fi
+```
+
 At the next stage when all replicas are registered from tickets look up one should initialize a process of data exctraction/preprocessing from the temporary store with the following bulk insertion into Redis database$:
 * --> *[POST]*: `/loadDf2redis`
 ```bash
@@ -97,12 +140,14 @@ One can supply different form of POST query:
 * `POST -d "?email=ektov.a.va@sberbank.ru&force_reload=0"`
 * `POST -d "?email=ektov.a.va@sberbank.ru"`
 
-Params `force_reload` is suppposed to forcely update Redis DB without considering the `STATUS` value on corresponding `ticket` files
+Params `force_reload` is supposed to forcely update Redis DB without considering the `STATUS` value on corresponding `ticket` files
 
 This API works in several stages on the backend side:
 1. Load data from appropriate file by picking corresponding file name from ticket meta data
 1. Run Preprocessing block: 
    - reduce memory usage
+   - brushing json str (convert enclosing strings with double quotes and treat the case if JSON holds escaped 
+   single-quotes *(\\')* or extra double quotes within text value *(\w\"\w)*)
    - analyze nandas data types
    - analyze columns with constant values (constant std)
    - calc a statistics about missing values
