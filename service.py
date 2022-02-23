@@ -271,7 +271,6 @@ async def loadDf2redis(request: Request, response: Response):
         else:
             force_reload = -1
 
-
     ticket_files = []
     dirs = os.listdir(STREAM_DIR)
     for dir_ in dirs:
@@ -294,6 +293,12 @@ async def loadDf2redis(request: Request, response: Response):
                     # reduce mem usage
                     df, NA_cols = prep.reduce_mem_usage(df)
                     all_cols_tr = df.columns.values.tolist()
+
+                    # treatnig misleading JSON strings
+                    for col in df.columns:
+                        if prep.is_json(df[col][df[col].first_valid_index()]):
+                            df[col] = df[col].apply(lambda x: prep.verify_json_str(x))
+
                     # imputing strategy on numeric columns
                     imp_whole_df, miss_stat_df = prep.makeImputing(df, 'mean', all_cols=all_cols_tr)
                     # perform MinMax Scaling over numeric columns
