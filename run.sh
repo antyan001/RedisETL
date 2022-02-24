@@ -14,10 +14,10 @@ docker build --build-arg ssh_prv_key="$(cat ~/.ssh/id_rsa)" \
 
 cd /root/ReddisPostGres/
 
-result=`docker ps -a | grep -E "service.py|gunicorn*" | awk '{print $1}' | wc -l`
+result=`docker ps -a | grep -E "service.py|gunicorn*|web_app*" | awk '{print $1}' | wc -l`
 if [ $result -ge 1 ]
    then
-		process_id=$(docker ps -a | grep -E "service.py|gunicorn*" | awk '{print $1}')
+		process_id=$(docker ps -a | grep -E "service.py|gunicorn*|web_app*" | awk '{print $1}')
 # 		echo 'Killing'
 		for pid in $process_id; do
 # 		    echo "KILL: $pid"
@@ -30,12 +30,11 @@ fi
 
 docker run --device /dev/fuse \
            --cap-add SYS_ADMIN \
-           --privileged \
            --env-file ./config0.env --name web_app_0 -d -p 0.0.0.0:8003:8003 docker.io/library/fastapi_app:latest
 #docker run --env-file ./config1.env --name web_app_1 -d -p 0.0.0.0:8003:8003 docker.io/library/fastapi_app:latest
 #docker run --env-file ./config2.env --name web_app_2 -d -p 0.0.0.0:8004:8004 docker.io/library/fastapi_app:latest
 
 
 ## INITIALIZE KEYRING AND MAKE A WALLET FOR USER CREDENTIALS inside the running container
-docker_id="$(docker ps -a | grep -e "gunicorn" | awk '{print $1}' | xargs)"; \
+docker_id="$(docker ps -a | grep -E "gunicorn*" | awk '{print $1}' | xargs)"; \
 docker exec -it $docker_id /bin/sh -c "cd /app/keyring/; ./set_cred_wallet.sh $KEYRINGPASS"
