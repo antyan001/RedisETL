@@ -8,6 +8,7 @@ from datetime import datetime, date
 import requests
 import smtplib
 import json
+from typing import Any, Dict, AnyStr, List, Union, Tuple
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from exchangelib import DELEGATE, Account, Credentials, Configuration, NTLM, Message, FileAttachment, Mailbox
@@ -75,7 +76,7 @@ class Authorization(object):
         log("="*54 + " {} ".format(self.currdate) + "="*54, self.logger)
 
     @class_method_logger
-    def get_password(self):
+    def get_password(self) -> str:
         p = self.kr.get_password(self.SERVICE_NAME, self.user)
         if not p:
             raise Exception("{}\nNo Encrypted password for pair: {} {}".format(self.kr,
@@ -85,11 +86,11 @@ class Authorization(object):
         return p
 
     @property
-    def username(self):
+    def username(self) -> str:
         return '%s\\%s' % (self.domain, self.user)
 
     @property
-    def password(self):
+    def password(self) -> str:
         return self.get_password()
 
 class SMTPMailSender(object):
@@ -126,7 +127,7 @@ class SMTPMailSender(object):
         log("="*54 + " {} ".format(self.currdate) + "="*54, self.logger)
 
     @class_method_logger
-    def send_mail(self, msg):
+    def send_mail(self, msg: str):
         mail_content = self.message
 
         # The mail addresses and password
