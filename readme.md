@@ -21,17 +21,27 @@ Hosted virtual machines with deployed microservises:
 ### REDIS DB 
 ![redis](./img/redis.png)
 * **Redis**
-  * [RUN]
+  * [RUN] main docker container with Redis as backend DB:
     ```dockerfile
     docker run -d -p 6379:6379 docker.io/library/redis:latest /bin/sh -c 'redis-server --requirepass *****'
     ```
 * **Redisinsight**
-  * [RUN] 
+  * [RUN] redisinsight GUI manager: 
     ```dockerfile
     docker run -d -p 8001:8001 docker.io/redislabs/redisinsight:latest
     ```
-  * ``http://65.108.56.136:8001/instance/28c3e80b-014a-4893-a3fb-3d7667a538d5/``
+  * CHECK this endpoint to see all registered replicas and its content: ``http://65.108.56.136:8001/instance/28c3e80b-014a-4893-a3fb-3d7667a538d5/``
 
+### Accessible Endpoints Call Order
+See proper syntax for calling in Project Description Section
+- [POST] ``http://65.108.56.136:8003/check_fingerprint``
+- [GET] ``http://65.108.56.136:8003/register_replicas``
+- [GET]  ``http://65.108.56.136:8003/stop_calling_registry`` | *OPTIONAL*
+- [POST] ``http://65.108.56.136:8003/loadDf2redis``
+- [GET] ``http://65.108.56.136:8003/getRegisteredReplics``
+- [GET] ``http://65.108.56.136:8003/unregister_replicas``
+
+### MAIN PROJECT DESCRIPTION
 Hereafter the directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
 We can simply perform a content synchronizations between stream directory on one remote host and look up directory on current machine using sshfs functionality:   
 ```shell script
