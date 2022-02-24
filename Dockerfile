@@ -94,9 +94,15 @@ RUN eval `ssh-agent -s` && ssh-add /ssh/id_rsa
 #CMD  ["python3", "./service.py"]
 
 EXPOSE 8003
-CMD ["gunicorn3",\
-     "--bind", "0.0.0.0:8003",\
-     "-w", "4",\
-     "--threads", "4",\
-     "-k", "uvicorn.workers.UvicornWorker",\
-     "service:app"]
+CMD ["/bin/sh", \
+     "-c", \
+     "gunicorn3 --bind 0.0.0.0:8003 -w 4 --threads 4 --timeout $TIMEOUT -k uvicorn.workers.UvicornWorker service:app" \
+    ]
+
+#CMD ["gunicorn3",\
+#     "--bind", "0.0.0.0:8003",\
+#     "-w", "4",\
+#     "--threads", "4",\
+#     "--timeout", "$TIMEOUT",\
+#     "-k", "uvicorn.workers.UvicornWorker",\
+#     "service:app"]
