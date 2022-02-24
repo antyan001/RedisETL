@@ -7,6 +7,7 @@ from json.decoder import JSONDecodeError
 from collections import Counter
 from subprocess import check_output, STDOUT
 from datetime import datetime
+from typing import Any, Dict, AnyStr, List, Union, Tuple
 from geonamescache import GeonamesCache
 from sklearn.preprocessing import StandardScaler, MaxAbsScaler, MinMaxScaler
 from sklearn.impute import SimpleImputer
@@ -15,7 +16,7 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 __all__ = ('PreprocPipe')
 
-def brushing_json_str(x):
+def brushing_json_str(x: str)  -> str:
     # convert enclosing strings with double quotes and
     # treat the case if JSON holds escaped single-quotes (\')
     escaped_s_quotes = re.compile('(?<!\\\\)\'')
@@ -56,7 +57,7 @@ class PreprocPipe():
                 return False
         return False
 
-    def verify_json_str(self, x):
+    def verify_json_str(self, x: str) -> str:
         json_str = brushing_json_str(x)
         try:
             json_ = json.loads(json_str)
@@ -87,7 +88,7 @@ class PreprocPipe():
         return json.dumps(json_)
 
 
-    def reduce_mem_usage(self, props):
+    def reduce_mem_usage(self, props: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         start_mem_usg = props.memory_usage().sum() / 1024 ** 2
         print("Memory usage: {:.1f} Mb".format(start_mem_usg))
         NAlist = []
@@ -154,7 +155,7 @@ class PreprocPipe():
         print("This is {:.1f} % of the initial size".format(100 * mem_usg / start_mem_usg))
         return props, NAlist
 
-    def makeImputing(self, df=None, strategy='mean', all_cols=None):
+    def makeImputing(self, df: pd.DataFrame = None, strategy: str = 'mean', all_cols: List = None) -> Tuple[str, str]:
         fill_nan_cols = []
         fill_empty_cols = []
         im = SimpleImputer(strategy=strategy, fill_value=None, copy=False)
@@ -198,7 +199,7 @@ class PreprocPipe():
 
         return out[all_cols], missing_df
 
-    def makeScale(self, df, all_cols, exclude_cols):
+    def makeScale(self, df: pd.DataFrame, all_cols: List , exclude_cols: List) -> pd.DataFrame:
         _df = df.copy()
         dtypes_dct = dict(df.dtypes.to_frame('dtypes').reset_index().values)
         if exclude_cols is not None:
@@ -216,7 +217,7 @@ class PreprocPipe():
 
         return reorder_df[all_cols]
 
-    def findConstCols(self, df, isremove=False):
+    def findConstCols(self, df: pd.DataFrame, isremove: bool = False) -> Dict[AnyStr, Any]:
         # Columns to drop because there is no variation in training set
         #     numerical_ix  = df.select_dtypes(include=[int, np.float, bool]).columns.values.tolist()
         zero_std_cols = (df.std(axis=0) == 0.).index.tolist()
