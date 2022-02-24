@@ -29,7 +29,7 @@ from slowapi.errors import RateLimitExceeded
 # from flask import Flask, request, session, jsonify
 from flask import jsonify
 from subprocess import check_output, STDOUT
-from typing import Any, Dict, AnyStr, List, Union
+from typing import Any, Dict, AnyStr, List, Union, Tuple
 from src import PreprocPipe
 from lib import SMTPMailSender, Authorization, class_method_logger
 
@@ -68,7 +68,7 @@ def is_xlsx(filename): return os.path.splitext(filename)[1].lower() == '.xlsx'
 def is_xlsb(filename): return os.path.splitext(filename)[1].lower() == '.xlsb'
 def is_csv(filename): return os.path.splitext(filename)[1].lower() == '.csv'
 
-def convert_bytes(num):
+def convert_bytes(num: np.float) -> np.float:
     """
     this function will convert bytes to MB.... GB... etc
     """
@@ -77,7 +77,7 @@ def convert_bytes(num):
             return "%3.1f %s" % (num, x)
         num /= 1024.0
 
-def send_mail(message, receiver_address):
+def send_mail(message: str, receiver_address: str):
 
     with open("mail_settings/mail_settings.txt", "r") as f:
         settings = json.load(f)
@@ -101,7 +101,7 @@ def run_app():
 
 @app.post('/check_fingerprint')
 @limiter.limit("10/second")
-async def check_fingerprint(request: Request, response: Response):
+async def check_fingerprint(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i -H "Content-Type: application/json" -X POST -d '{"md5_key":"0h******UCt******UzGoL/bEyU******T3kd7TL3Tk"}'
                               http://localhost:8003/check_fingerprint
@@ -133,7 +133,7 @@ async def check_fingerprint(request: Request, response: Response):
 
 @app.get('/register_replicas')
 @limiter.limit("10/second")
-async def register_replicas(request: Request, response: Response):
+async def register_replicas(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i http://locahost:8003/register_replicas
     :param request: None
@@ -189,7 +189,7 @@ async def register_replicas(request: Request, response: Response):
 
 @app.get('/unregister_replicas')
 @limiter.limit("10/second")
-async def unregister_replicas(request: Request, response: Response):
+async def unregister_replicas(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i http://locahost:8003/unregister_replicas
     :param request: None
@@ -247,7 +247,7 @@ async def stop_calling_registry(request: Request, response: Response):
 
 @app.post('/loadDf2redis')
 @limiter.limit("10/second")
-async def loadDf2redis(request: Request, response: Response):
+async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i -X POST -d "ektov.a.va@sberbank.ru" http://localhost:8003/loadDf2redis
     :param request: string with user email
@@ -294,11 +294,16 @@ async def loadDf2redis(request: Request, response: Response):
                     df, NA_cols = prep.reduce_mem_usage(df)
                     all_cols_tr = df.columns.values.tolist()
 
-                    # treatnig misleading JSON strings
+                    # treatnig a misleading JSON strings
                     for col in df.columns:
-                        if prep.is_json(df[col][df[col].first_valid_index()]):
-                            df[col] = df[col].apply(lambda x: prep.verify_json_str(x))
-
+                        try:
+                            try_first_nonna = df[col][df[col].first_valid_index()]
+                            if try_first_nonna is not None:
+                                if prep.is_json(try_first_nonna):
+                                    df[col] = df[col].fillna('')
+                                    df[col] = df[col].apply(lambda x: prep.verify_json_str(x))
+                        except:
+                            pass
                     # imputing strategy on numeric columns
                     imp_whole_df, miss_stat_df = prep.makeImputing(df, 'mean', all_cols=all_cols_tr)
                     # perform MinMax Scaling over numeric columns
@@ -377,7 +382,7 @@ async def loadDf2redis(request: Request, response: Response):
 
 @app.get('/getRegisteredReplics')
 @limiter.limit("10/second")
-async def getRegisteredReplics(request: Request, response: Response):
+async def getRegisteredReplics(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i  http://localhost:8003/getRegisteredReplics
     :param request: None
