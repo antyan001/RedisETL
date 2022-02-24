@@ -34,17 +34,6 @@ ENV LC_ALL en_US.UTF-8
 RUN apt-get update -y && apt-get install -y python3-pip python3-dev build-essential
 # RUN ln -s /usr/bin/pip3 /usr/bin/pip && ln -s /usr/bin/python3.8 /usr/bin/python
 
-# Authorize SSH Host
-#RUN mkdir -p root/.ssh && \
-#    chmod 0700 root/.ssh && \
-#    ssh-keyscan -H 65.108.60.87 >> root/.ssh/known_hosts
-#
-## Add the keys and set permissions
-#RUN echo "$ssh_prv_key" > /root/.ssh/id_rsa && \
-#    echo "$ssh_pub_key" > /root/.ssh/id_rsa.pub && \
-#    chmod 600 /root/.ssh/id_rsa && \
-#    chmod 600 /root/.ssh/id_rsa.pub
-
 #COPY ./.ssh /app
 COPY ./IN_STREAM /app
 COPY ./src /app
