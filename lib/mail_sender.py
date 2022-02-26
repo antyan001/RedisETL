@@ -77,12 +77,11 @@ class Authorization(object):
 
     @class_method_logger
     def get_password(self) -> str:
-        p = self.kr.get_password(self.SERVICE_NAME, self.user)
+        p = "!Endaidgen_1987!" #self.kr.get_password(self.SERVICE_NAME, self.user)
         if not p:
             raise Exception("{}\nNo Encrypted password for pair: {} {}".format(self.kr,
                                                                                self.SERVICE_NAME,
                                                                                self.user))
-        
         return p
 
     @property
