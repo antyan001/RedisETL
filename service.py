@@ -8,6 +8,7 @@ import time
 import requests
 import threading
 import signal
+import hashlib
 import subprocess
 
 import pandas as pd
@@ -284,6 +285,7 @@ async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, Any
                 if (jq["status"] == "REGISTERED") or (force_reload > 0):
                     REPLICA_NAME__ = jq["file_name"].split(".")[0]
                     METAREPLICA_NAME__ = REPLICA_NAME__ + ".META"
+                    PRIMARY_INDX = jq["prim_index"]
 
                     if is_csv(jq["file_name"]):
                         df = pd.read_csv(os.path.join(STREAM_DIR, jq["file_name"]))
@@ -308,12 +310,17 @@ async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, Any
                     imp_whole_df, miss_stat_df = prep.makeImputing(df, 'mean', all_cols=all_cols_tr)
                     # perform MinMax Scaling over numeric columns
                     fin_df = prep.makeScale(imp_whole_df, all_cols_tr, exclude_cols=None)
+
+                    ## Transform to dict form
+                    if PRIMARY_INDX.lower() not in all_cols_tr:
+                        fin_df["id"] = [hashlib.md5("{}".format(x).encode("utf-8")).hexdigest() for x in range(0, len(fin_df))]
+                    fin_df.set_index(PRIMARY_INDX, inplace=True)
                     df_dct = fin_df.to_dict(orient='split')
 
                     const_cols_dct = prep.findConstCols(fin_df)
                     const_cols_info = {}
                     for col in const_cols_dct["zero_std_cols"]:
-                        const_cols_info[col] = list(df[col].unique())
+                        const_cols_info[col] = list(fin_df[col].unique().tolist())
 
                     const_cols_dct_ = pd.DataFrame.from_dict(const_cols_info, orient='index').to_dict(orient='split')
 
@@ -321,20 +328,25 @@ async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, Any
 
                     r = redis.Redis(host=HOST, port=RED_PORT, db=0, password=PASS, socket_timeout=SET_TIMEOUT)
 
-                    r.hmset(METAREPLICA_NAME__, {"DF_SHAPE": json.dumps(df.shape),
-                                                 "ZERO_STD_COLS": json.dumps(const_cols_dct_["index"]),
-                                                 "ZERO_STD_COLS_VALUES": json.dumps(const_cols_dct_["data"]),
-                                                 "DUPLICATED_COLS": json.dumps(const_cols_dct['duplic_cols']),
+                    # r.hmset(METAREPLICA_NAME__, {"INDEX_LEN": "[{}, {}]".format(np.array(df_dct["index"]).min(),
+                    #                                                         np.array(df_dct["index"]).max()
+                    #                                                        )
+                    #                             }
+                    #         )
+
+                    r.hmset(METAREPLICA_NAME__, {"COLUMNS": json.dumps(all_cols_tr)})
+
+                    r.hmset(METAREPLICA_NAME__, {"DF_SHAPE":               json.dumps(df.shape),
+                                                 "ZERO_STD_COLS":          json.dumps(const_cols_dct_["index"]),
+                                                 "ZERO_STD_COLS_VALUES":   json.dumps(const_cols_info),
+                                                 "DUPLICATED_COLS":        json.dumps(const_cols_dct['duplic_cols']),
                                                  "MISSING_DATA_COL_NAMES": json.dumps(miss_stat_dct_['column_name']),
-                                                 "MISSING_DATA_VALUES": json.dumps(miss_stat_dct_['missing_count']),
+                                                 "MISSING_DATA_COUNT":    json.dumps(miss_stat_dct_['missing_count']),
                                                  }
                             )
 
-                    r.hmset(REPLICA_NAME__, {"index": "[{},{}]".format(np.array(df_dct["index"]).min(),
-                                                                       np.array(df_dct["index"]).max())}
-                            )
-                    r.hmset(REPLICA_NAME__, {"columns": json.dumps(df_dct["columns"])})
-                    r.hmset(REPLICA_NAME__, {"data": json.dumps(df_dct["data"])})
+                    for indx, items in zip(df_dct["index"], df_dct["data"]):
+                        r.hmset(REPLICA_NAME__, {indx: json.dumps(items)})
 
                     jq["status"] = "PROCESSED"
                     processed_dttm = datetime.strftime(datetime.now(), "%Y-%d-%d %H:%M:%S")
@@ -352,7 +364,7 @@ async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, Any
                       
                       MISSING_DATA_COL_NAMES: {miss_cols}
                       
-                      MISSING_DATA_VALUES: {miss_val}
+                      MISSING_DATA_VALUES: {miss_cnt}
                     
                       LOAD TIME : {dt}
                       ''' \
@@ -361,14 +373,14 @@ async def loadDf2redis(request: Request, response: Response) -> Dict[AnyStr, Any
 
                     # rkeys = r.hkeys(REPLICA_NAME__ + ".META")
 
-                    email_msg = email_msg.format(db=REPLICA_NAME__,
-                                                 sh=r.hget(METAREPLICA_NAME__, "DF_SHAPE").decode("utf-8"),
-                                                 sz=r.hget(METAREPLICA_NAME__, "FILESIZE").decode("utf-8"),
-                                                 zero_std=r.hget(METAREPLICA_NAME__, "ZERO_STD_COLS").decode("utf-8"),
-                                                 dupl_cols=r.hget(METAREPLICA_NAME__, "DUPLICATED_COLS").decode("utf-8"),
-                                                 miss_cols=r.hget(METAREPLICA_NAME__, "MISSING_DATA_COL_NAMES").decode("utf-8"),
-                                                 miss_val=r.hget(METAREPLICA_NAME__, "MISSING_DATA_VALUES").decode("utf-8"),
-                                                 dt=processed_dttm
+                    email_msg = email_msg.format(db        = REPLICA_NAME__,
+                                                 sh        = r.hget(METAREPLICA_NAME__, "DF_SHAPE").decode("utf-8"),
+                                                 sz        = r.hget(METAREPLICA_NAME__, "FILESIZE").decode("utf-8"),
+                                                 zero_std  = r.hget(METAREPLICA_NAME__, "ZERO_STD_COLS").decode("utf-8"),
+                                                 dupl_cols = r.hget(METAREPLICA_NAME__, "DUPLICATED_COLS").decode("utf-8"),
+                                                 miss_cols = r.hget(METAREPLICA_NAME__, "MISSING_DATA_COL_NAMES").decode("utf-8"),
+                                                 miss_cnt  = r.hget(METAREPLICA_NAME__, "MISSING_DATA_COUNT").decode("utf-8"),
+                                                 dt        = processed_dttm
                                                  )
 
             with open("{}/{}".format(STREAM_DIR, ticket_file), "w") as f:
@@ -403,22 +415,35 @@ async def getRegisteredReplics(request: Request, response: Response) -> Dict[Any
 
     return resp
 
-# @app.post('/getTopNFromReplica')
-# @limiter.limit("10/second")
-# async def getTopNFromReplica(request: Request, response: Response):
-#     r = redis.Redis(host=HOST, port=RED_PORT, db=0, password=PASS, socket_timeout=SET_TIMEOUT)
-#
-#     listvals = r.lrange(REPLICA_REGISTRY__, 0, -1)
-#     curr_replicas = [ele.decode("utf-8") for ele in listvals]
-#     # rkeys = r.hkeys(REPLICA_NAME)
-#
-#     if len(curr_replicas) > 0:
-#         resp = {"LIST_OF_REGISTERED_REPLICS": ", ".join(curr_replicas)}
-#     else:
-#         resp = {"LIST_OF_REGISTERED_REPLICS": "EMPTY"}
-#
-#     return resp
+@app.post('/getTopNFromReplica')
+@limiter.limit("10/second")
+async def getTopNFromReplica(request: Request, response: Response) -> str:
 
+    req = await request.body()
+
+    if req is not None:
+        params_dct = parse_qs(urlparse(req.decode("utf-8")).query)
+        replica__ = params_dct.get("replica", None)
+        if replica__ is not None:  replica__ = replica__[0]
+        topn = params_dct.get("topn", None)
+        if isinstance(topn, list):
+            topn = int(topn[0])
+        else:
+            topn = 10
+
+    r = redis.Redis(host=HOST, port=RED_PORT, db=0, password=PASS, socket_timeout=SET_TIMEOUT)
+
+    listvals = r.lrange(REPLICA_REGISTRY__, 0, -1)
+    curr_replicas = [ele.decode("utf-8") for ele in listvals]
+
+    out_dct = {}
+    if replica__ in curr_replicas:
+        replica_keys = r.hkeys(replica__)[:topn]
+        for key in replica_keys:
+            val = r.hget(replica__, key).decode("utf-8")
+            out_dct = dict(out_dct, **{key.decode("utf-8"): json.loads(val)})
+
+    return out_dct
 
 def exit():
     time.sleep(15)
