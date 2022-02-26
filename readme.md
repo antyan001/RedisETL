@@ -39,8 +39,8 @@ See proper syntax for calling in Project Description Section
 - [GET]  ``http://65.108.56.136:8003/stop_calling_registry`` | *OPTIONAL*
 - [POST] ``http://65.108.56.136:8003/loadDf2redis``
 - [GET] ``http://65.108.56.136:8003/getRegisteredReplics``
-- [GET] ``http://65.108.56.136:8003/unregister_replicas``
 - [POST] ``http://65.108.56.136:8003/getTopNFromReplica``
+- [GET] ``http://65.108.56.136:8003/unregister_replicas``
 
 ### MAIN PROJECT DESCRIPTION
 Hereafter the directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
