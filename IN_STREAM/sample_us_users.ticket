@@ -1,5 +1,6 @@
 {
     "file_name": "sample_us_users.csv",
+    "prim_index": "id",
     "status": "READY",
     "load_dttm": "2022-02-22:19:35:32"
 }
