@@ -40,6 +40,7 @@ See proper syntax for calling in Project Description Section
 - [POST] ``http://65.108.56.136:8003/loadDf2redis``
 - [GET] ``http://65.108.56.136:8003/getRegisteredReplics``
 - [GET] ``http://65.108.56.136:8003/unregister_replicas``
+- [POST] ``http://65.108.56.136:8003/getTopNFromReplica``
 
 ### MAIN PROJECT DESCRIPTION
 Hereafter the directory `IN_STREAM` is a joy analog of Kafka2Kafka mechanism of communications between broker and consumer topics\
@@ -167,11 +168,12 @@ Params `force_reload` is supposed to forcely update Redis DB without considering
 
 This API works in several stages on the backend side:
 1. Load data from appropriate file by picking corresponding file name from ticket meta data
-1. Run Preprocessing block: 
+1. **Run Preprocessing block**: 
    - reduce memory usage
    - brushing json str (convert enclosing strings with double quotes and treat the case if JSON holds escaped 
    single-quotes *(\\')* or extra double quotes within text value *(\w\"\w)*)
-   - analyze nandas data types
+   - analyse json string: check proper linkages between US states and countrycode using `geonamecaches` package
+   - analyze pandas data types
    - analyze columns with constant values (constant std)
    - calc a statistics about missing values
    - choose a strategy for filling NaN values (here we use `SimpleImputer()` class from sklearn)
@@ -193,6 +195,23 @@ content-length: 22
 content-type: application/json
 
 {"unregistry":"success"}
+```
+
+* --> *[POST]*: `/getTopNFromReplica`
+```shell script
+root@kcloud-production-user-136-vm-179:~/ReddisPostGres# curl -i http://65.108.56.136:8003/getTopNFromReplica -X POST -d "?replica=sample_us_users&topn=2"
+HTTP/1.1 200 OK
+date: Fri, 25 Feb 2022 20:37:53 GMT
+server: uvicorn
+content-length: 337
+content-type: application/json
+
+{"e67271f9-20d1-434e-ba06-bb21caea0290":["{\"city\": \"Bismarck\", \"state\": \"North Dakota\", 
+                                           \"country\": \"US\", \"postCode\": \"58501\"}",
+ "2020-07-15 17:48:17.399"],
+ "2f861035-3445-45da-87ae-61964d2d2e5b":["{\"city\": \"pasadena\", \"state\": \"US-OUT\", 
+                                           \"country\": \"US-OUT\", \"postCode\": \"91107\"}",
+ "2020-09-18 16:10:09.661"]}
 ```
 ## Docker image with SSH synchronization and Keyrings support
 ALl the credentials stored in user secret directories are passed to Docker at build time via unix `cat` functionality:
