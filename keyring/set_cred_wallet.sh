@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 
-export KEYRINGCFG=$HOME/.local/share/python_keyring/keyringrc.cfg
+#export KEYRINGCFG=$HOME/.local/share/python_keyring/keyringrc.cfg # for python3.6
+export KEYRINGCFG=$HOME/.config/python_keyring/keyringrc.cfg
+
 ## KEYRING
 
 if [ ! -f $KEYRINGCFG ]; then
     echo "File not found!"
-    mkdir -p  $HOME/.local/share/python_keyring/ && echo -e "[backend]\ndefault-keyring=keyrings.alt.file.PlaintextKeyring" > $KEYRINGCFG
+    mkdir -p  $HOME/.config/python_keyring/ && echo -e "[backend]\ndefault-keyring=keyrings.alt.file.PlaintextKeyring" > $KEYRINGCFG
 fi
 
 ## Disable promnt `Please enter password for encrypted keyring`
