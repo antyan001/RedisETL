@@ -196,7 +196,7 @@ content-type: application/json
 
 {"unregistry":"success"}
 ```
-
+Hereafter one can fetch topN records from Redis cache
 * --> *[POST]*: `/getTopNFromReplica`
 ```shell script
 root@kcloud-production-user-136-vm-179:~/ReddisPostGres# curl -i http://65.108.56.136:8003/getTopNFromReplica -X POST -d "?replica=sample_us_users&topn=2"
@@ -213,6 +213,17 @@ content-type: application/json
                                            \"country\": \"US-OUT\", \"postCode\": \"91107\"}",
  "2020-09-18 16:10:09.661"]}
 ```
+Or using `subprocess` package to get return value from curl call:
+```python
+import shlex
+cmd = 'curl -i http://65.108.56.136:8003/getTopNFromReplica -X POST -d "?replica=AVATAR_SAMPLE&topn=10"'
+args = shlex.split(cmd)
+process = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+stdout, stderr = process.communicate()
+
+print(stdout.decode("utf-8"))
+```
+
 ## Docker image with SSH synchronization and Keyrings support
 ALl the credentials stored in user secret directories are passed to Docker at build time via unix `cat` functionality:
 ```shell script
