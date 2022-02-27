@@ -1,5 +1,13 @@
 #!/usr/bin/bash
 
+sudo apt clean && \
+sudo apt-get autoclean && \
+sudo apt-get autoremove && \
+sudo apt-get update
+
+docker image prune -f && docker container prune -f
+
+
 KEYRINGPASS=$(cat ~/.secret/pass | sed 's/\n//g')
 
 docker build --build-arg ssh_prv_key="$(cat ~/.ssh/id_rsa)" \
