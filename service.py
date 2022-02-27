@@ -1,16 +1,21 @@
 #!/usr/bin/python3
 import os
 import sys
+
+# sys.path.insert(0, '/usr/local/lib/python3.7/dist-packages')
+
 import json
 import re
 import ast
 import time
 import requests
+import asyncio
+import logging
 import threading
+from multiprocessing import Process
 import signal
 import hashlib
 import subprocess
-
 import pandas as pd
 import re
 import numpy as np
@@ -32,7 +37,7 @@ from flask import jsonify
 from subprocess import check_output, STDOUT
 from typing import Any, Dict, AnyStr, List, Union, Tuple
 from src import PreprocPipe
-from lib import SMTPMailSender, Authorization, class_method_logger
+from lib import SMTPMailSender, Authorization, class_method_logger, log
 
 os.environ["PYTHONIOENCODING"]="utf8"
 
@@ -52,7 +57,7 @@ REDIS_URL = "redis://:{0}@{1}:{2}/0?encoding=utf-8".format(PASS, HOST, RED_PORT)
 # app.config['SESSION_TYPE'] = 'filesystem'
 
 limiter = Limiter(key_func=get_remote_address, storage_uri=REDIS_URL)
-app = FastAPI()
+app = FastAPI(title="REST API using FastAPI Redis Async EndPoints")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -78,6 +83,53 @@ def convert_bytes(num: np.float) -> np.float:
             return "%3.1f %s" % (num, x)
         num /= 1024.0
 
+class aobject(object):
+    """Inheriting this class allows you to define an async __init__.
+
+    So you can create objects by doing something like `await MyClass(params)`
+    """
+    async def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        await instance.__init__(*args, **kwargs)
+        return instance
+
+    async def __init__(self):
+        pass
+
+class ServiceLogger(aobject):
+
+    async def __init__(self):
+        super().__init__()
+        self.local_path = "./logs/"
+        self.currdate = datetime.strftime(datetime.today(), format='%Y-%m-%d')
+        self.script_name = 'RedisWriter'
+        self.__dict__ = self.__dict__()
+        self.init_logger()
+
+    def __dict__(self):
+        return dict()
+
+    def init_logger(self):
+        self.print_log = True
+
+        try:
+            os.makedirs(self.local_path + self.currdate)
+        except Exception as ex:
+            print("# MAKEDIRS ERROR: \n"+ str(ex), file=sys.stderr)
+            p = subprocess.Popen(['mkdir', '-p', os.path.join(self.local_path, self.currdate)],
+                                 stdout=subprocess.PIPE,
+                                 stdin=subprocess.PIPE)
+            res = p.communicate()[0]
+            # print(res)
+
+        logging.basicConfig(filename='logs/{}/{}.log'.format(self.currdate, self.script_name),
+                            level=logging.INFO,
+                            format='%(asctime)s %(message)s')
+        self.logger = logging.getLogger(__name__)
+
+        log("="*54 + " {} ".format(self.currdate) + "="*54, self.logger)
+
+
 def send_mail(message: str, receiver_address: str):
 
     with open("mail_settings/mail_settings.txt", "r") as f:
@@ -96,13 +148,44 @@ def send_mail(message: str, receiver_address: str):
 
     mail.send_mail(mail.message)
 
+
+#***************************************************
+##******** Initialize Asynchronous Logging *********
+#***************************************************
+async def apilogger():
+    return await ServiceLogger()
+#***************************************************
+#***************************************************
+loop = asyncio.get_event_loop()
+apilogger_cls = loop.run_until_complete(apilogger())
+#***************************************************
+#***************************************************
+
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#################################### FASTAPI REST ENDPOINTS INITIALIZATION BLOCK #######################################
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def run_app():
     uvicorn.run("service:app", host="0.0.0.0", port=int(APP_PORT), reload=True, debug=True)
     # app.run(host="0.0.0.0", port=APP_PORT, debug=False, threaded=True, use_reloader=False)
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@app.on_event("startup")
+async def startup():
+    conn_tns = "redis://:{password}@{host}:{port}/0?encoding=utf-8".format(host=HOST, port=RED_PORT, db=0, password=PASS)
+    redis = await aioredis.Redis.from_url(conn_tns, max_connections=10, decode_responses=True)
 
 @app.post('/check_fingerprint')
 @limiter.limit("10/second")
-async def check_fingerprint(request: Request, response: Response) -> Dict[AnyStr, AnyStr]:
+async def check_fingerprint(request: Request = None,
+                            response: Response = None,
+                            ) -> Dict[AnyStr, AnyStr]:
     '''
     curl -i -H "Content-Type: application/json" -X POST -d '{"md5_key":"0h******UCt******UzGoL/bEyU******T3kd7TL3Tk"}'
                               http://localhost:8003/check_fingerprint
@@ -445,6 +528,34 @@ async def getTopNFromReplica(request: Request, response: Response) -> str:
 
     return out_dct
 
+@app.post('/clearRedisCache')
+@limiter.limit("10/second")
+async def clearRedisCache(request: Request, response: Response) -> str:
+
+    req = await request.body()
+
+    if req is not None:
+        params_dct = parse_qs(urlparse(req.decode("utf-8")).query)
+        replica__ = params_dct.get("replica", None)
+        if replica__ is not None:  replica__ = replica__[0]
+        remove = params_dct.get("remove", None)
+        if isinstance(remove, list):
+            isremove = bool(remove[0])
+        else:
+            isremove = False
+
+    r = redis.Redis(host=HOST, port=RED_PORT, db=0, password=PASS, socket_timeout=SET_TIMEOUT)
+
+    listvals = r.lrange(REPLICA_REGISTRY__, 0, -1)
+    curr_replicas = [ele.decode("utf-8") for ele in listvals]
+
+    if (replica__ in curr_replicas) and isremove:
+        replica_keys = r.hkeys(replica__)
+        for key in replica_keys:
+            r.hdel(replica__, key.decode("utf-8"))
+
+    return {"clear_cache": "success"}
+
 def exit():
     time.sleep(15)
     os.kill(os.getpid(), signal.SIGKILL)
@@ -454,7 +565,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, unregister_replicas)
     signal.signal(signal.SIGINT, unregister_replicas)
 
-    first_thread = threading.Thread(target=run_app)
+    first_thread = Process(target=run_app)
     # second_thread = threading.Thread(target=get_key)
     first_thread.start()
     # second_thread.start()
