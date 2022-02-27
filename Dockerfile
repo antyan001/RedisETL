@@ -31,8 +31,25 @@ RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
-RUN apt-get update -y && apt-get install -y python3-pip python3-dev build-essential
-# RUN ln -s /usr/bin/pip3 /usr/bin/pip && ln -s /usr/bin/python3.8 /usr/bin/python
+RUN apt-get update -y && apt-get install -y python3.7-dev \
+                                            python3.7-distutils \
+                                            python3.7-venv \
+                                            python3-setuptools \
+                                            build-essential
+
+# Register the version in alternatives
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
+
+# Set python 3 as the default python
+RUN update-alternatives --set python3 /usr/bin/python3.7
+
+# Upgrade pip to latest version
+RUN curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python3 get-pip.py --force-reinstall && \
+    rm get-pip.py
+
+#RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3.7 get-pip.py
+#RUN ln -s /usr/bin/pip3 /usr/bin/pip && ln -s /usr/bin/python3.8 /usr/bin/python38
 
 #COPY ./.ssh /app
 COPY ./IN_STREAM /app
@@ -40,7 +57,11 @@ COPY ./src /app
 COPY . /app
 WORKDIR /app
 
-RUN pip3 install --no-cache-dir -r requirements.txt
+#RUN mkdir -p /usr/local/lib/python3.8/dist-packages
+RUN python3.7 -m pip install --upgrade pip
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --upgrade keyrings.alt
+#python3.8 -m pip install  -t /usr/local/lib/python3.8/dist-packages
 
 ## KEYRING
 ## Disable promnt `Please enter password for encrypted keyring`
